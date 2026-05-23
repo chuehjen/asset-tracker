@@ -25,10 +25,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .header-currencies { display: flex; gap: 20px; margin-top: 14px; }
 .hcur { display: flex; flex-direction: column; gap: 2px; }
 .hcur-label { font-size: 10px; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
-.hcur-value { font-size: 15px; font-family: var(--mono); font-weight: 500; }
+.hcur-value { font-size: 22px; font-family: var(--mono); font-weight: 400; }
 .hcur-rmb { font-size: 11px; font-family: var(--mono); color: var(--muted); }
 .hcur-sep { width: 1px; background: var(--border); align-self: stretch; margin: 2px 0; }
-.header-right { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.header-right { display: flex; gap: 12px; align-items: center; flex-shrink: 0; text-align: right; }
 .month-nav { display: flex; align-items: center; gap: 10px; }
 .nav-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 16px; transition: all 0.15s; }
 .nav-btn:hover { border-color: var(--dim); color: var(--text); }
@@ -108,6 +108,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
       <div class="header-currencies" id="header-currencies"></div>
     </div>
     <div class="header-right">
+      <div id="header-delta"></div>
       <div class="month-nav">
         <button class="nav-btn" onclick="navigate(-1)">&#8249;</button>
         <span class="month-label" id="month-label">—</span>
@@ -228,12 +229,12 @@ function renderAll() {
   document.getElementById('total-rmb').textContent = fmtRMB(gt);
 
   const prev = snapshots[currentIdx - 1];
-  const deltaEl = document.getElementById('total-delta');
+  const deltaEl = document.getElementById('header-delta');
   if (prev) {
     const d = gt - grandTotal(prev);
-    deltaEl.textContent = (d >= 0 ? '▲ +' : '▼ ') + fmtRMB(Math.abs(d)) + ' 较上月';
-    deltaEl.className = 'total-delta ' + (d >= 0 ? 'delta-pos' : 'delta-neg');
-  } else { deltaEl.textContent = ''; }
+    deltaEl.innerHTML = `<span style="font-size:12px;font-family:var(--mono);${d>=0?'color:var(--ren)':'color:var(--danger)'}">${d>=0?'▲ +':'▼ '}${fmtRMB(Math.abs(d))}<br><span style="color:var(--dim);font-size:11px;">较上月</span></span>`;
+  } else { deltaEl.innerHTML = ''; }
+  document.getElementById('total-delta').textContent = '';
 
   const gtInTWD = Math.round(gt / s.rateTWD);
   const gtInUSD = Math.round(gt / s.rateUSD);

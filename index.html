@@ -273,6 +273,11 @@ function renderAll() {
   // Header currency strip
   const taiNativeVal = Math.round(['cathay','cathaysec','yuanta','taishin'].reduce((a,k)=>a+s[k],0));
   document.getElementById('header-currencies').innerHTML = `
+
+  const dt = daoTotal(s), rt = renTotal(s), tt = taiTotal(s);
+  const taiNativeVal = Math.round(['cathay','cathaysec','yuanta','taishin'].reduce((a,k)=>a+s[k],0));
+
+  document.getElementById('header-currencies').innerHTML = `
     <div class="hcur">
       <span class="hcur-label" style="color:var(--tai)">TWD</span>
       <span class="hcur-value" style="color:var(--tai)">NT$${taiNativeVal.toLocaleString()}</span>
@@ -291,8 +296,6 @@ function renderAll() {
       <span class="hcur-rmb">≈ ${fmtRMB(dt)}</span>
     </div>
   `;
-
-  const dt = daoTotal(s), rt = renTotal(s), tt = taiTotal(s);
 
   const sections = [
     { key: 'dao', tag: '刀', tagCls: 'tag-dao', barCls: 'bar-dao', cur: 'USD',

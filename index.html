@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>资产快照</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0e0e0f;
+  --surface: #161618;
+  --surface2: #1e1e21;
+  --border: #2a2a2e;
+  --text: #f0f0f0;
+  --muted: #6e6e78;
+  --dim: #3a3a40;
+  --dao: #4a9eff;
+  --ren: #3ecf8e;
+  --tai: #a78bfa;
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+/* Layout */
+.app { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+/* Header */
+.header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.header-left h1 { font-size: 13px; font-weight: 400; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; font-family: var(--mono); }
+.total-rmb { font-size: 42px; font-weight: 300; font-family: var(--mono); letter-spacing: -0.02em; color: var(--text); line-height: 1; }
+.total-delta { font-size: 13px; font-family: var(--mono); margin-top: 6px; }
+.delta-pos { color: var(--ren); }
+.delta-neg { color: var(--danger); }
+.header-right { display: flex; gap: 8px; align-items: center; }
+
+/* Month nav */
+.month-nav { display: flex; align-items: center; gap: 10px; }
+.nav-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 16px; transition: all 0.15s; }
+.nav-btn:hover { border-color: var(--dim); color: var(--text); }
+.month-label { font-family: var(--mono); font-size: 14px; color: var(--text); min-width: 60px; text-align: center; }
+.add-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0 14px; height: 32px; cursor: pointer; color: var(--muted); font-size: 13px; font-family: var(--sans); transition: all 0.15s; white-space: nowrap; }
+.add-btn:hover { border-color: var(--dim); color: var(--text); }
+
+/* Summary strip */
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 2rem; }
+.sum-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; }
+.sum-tag { font-size: 11px; font-family: var(--mono); letter-spacing: 0.1em; margin-bottom: 8px; display: inline-block; padding: 2px 8px; border-radius: 4px; }
+.tag-dao { background: rgba(74,158,255,0.1); color: var(--dao); }
+.tag-ren { background: rgba(62,207,142,0.1); color: var(--ren); }
+.tag-tai { background: rgba(167,139,250,0.1); color: var(--tai); }
+.sum-native { font-size: 18px; font-family: var(--mono); font-weight: 500; color: var(--text); }
+.sum-rmb { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-top: 3px; }
+.sum-pct { font-size: 11px; color: var(--dim); margin-top: 2px; font-family: var(--mono); }
+
+/* Section */
+.section { margin-bottom: 1.25rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; user-select: none; transition: border-color 0.15s; }
+.section-header:hover { border-color: var(--dim); }
+.section-header.open { border-radius: 8px 8px 0 0; border-bottom-color: var(--surface2); }
+.sec-left { display: flex; align-items: center; gap: 10px; }
+.sec-right { display: flex; align-items: center; gap: 12px; }
+.sec-total { font-family: var(--mono); font-size: 14px; color: var(--text); }
+.sec-rmb-label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.sec-gpct { font-family: var(--mono); font-size: 12px; color: var(--dim); min-width: 44px; text-align: right; }
+.sec-caret { color: var(--dim); font-size: 10px; transition: transform 0.2s; }
+.sec-caret.open { transform: rotate(90deg); }
+.section-body { background: var(--surface2); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; }
+
+/* Account rows */
+.acct-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 24px; border-bottom: 1px solid var(--border); }
+.acct-row:last-child { border-bottom: none; }
+.acct-name { font-size: 13px; color: var(--muted); width: 90px; flex-shrink: 0; font-family: var(--mono); }
+.acct-val { font-size: 13px; font-family: var(--mono); font-weight: 500; color: var(--text); width: 110px; text-align: right; flex-shrink: 0; }
+.acct-val-neg { color: var(--danger); }
+.acct-val-zero { color: var(--dim); }
+.acct-rmb { font-size: 11px; font-family: var(--mono); color: var(--dim); width: 80px; text-align: right; flex-shrink: 0; }
+.bar-wrap { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.bar-dao { background: var(--dao); }
+.bar-ren { background: var(--ren); }
+.bar-tai { background: var(--tai); }
+.bar-neg { background: var(--danger); }
+.acct-gpct { font-size: 11px; font-family: var(--mono); color: var(--dim); width: 44px; text-align: right; flex-shrink: 0; }
+
+/* Chart */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2rem; }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+.chart-label { font-size: 11px; font-family: var(--mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 520px; }
+.modal-title { font-size: 14px; font-family: var(--mono); color: var(--text); margin-bottom: 1.25rem; }
+.modal-rates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 1.25rem; }
+.modal-group { margin-bottom: 1.25rem; }
+.modal-group-label { font-size: 11px; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; display: block; }
+.modal-rows { display: flex; flex-direction: column; gap: 6px; }
+.modal-row { display: flex; align-items: center; gap: 8px; }
+.modal-field-label { font-size: 12px; font-family: var(--mono); color: var(--muted); width: 100px; flex-shrink: 0; }
+.modal-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; font-family: var(--mono); color: var(--text); outline: none; transition: border-color 0.15s; }
+.modal-input:focus { border-color: var(--dim); }
+.modal-subtotal { font-size: 11px; font-family: var(--mono); color: var(--dim); margin-top: 4px; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }
+.btn-cancel { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--muted); transition: all 0.15s; }
+.btn-cancel:hover { border-color: var(--dim); color: var(--text); }
+.btn-save { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 20px; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text); transition: all 0.15s; }
+.btn-save:hover { border-color: var(--dim); }
+
+/* Loading / empty */
+.status { text-align: center; padding: 4rem 0; font-family: var(--mono); font-size: 13px; color: var(--dim); }
+.error-msg { color: var(--danger); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>资产快照</h1>
+      <div class="total-rmb" id="total-rmb">—</div>
+      <div class="total-delta" id="total-delta"></div>
+    </div>
+    <div class="header-right">
+      <div class="month-nav">
+        <button class="nav-btn" onclick="navigate(-1)">&#8249;</button>
+        <span class="month-label" id="month-label">—</span>
+        <button class="nav-btn" onclick="navigate(1)">&#8250;</button>
+      </div>
+      <button class="add-btn" onclick="openModal()">＋ 录入</button>
+    </div>
+  </div>
+
+  <div id="main-content"><div class="status" id="status-msg">加载中...</div></div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-title" id="modal-title">录入月度快照</div>
+      <div class="modal-rates">
+        <div><div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">年份</div><input class="modal-input" type="number" id="m-year" min="2020" max="2035"/></div>
+        <div><div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">月份</div><input class="modal-input" type="number" id="m-month" min="1" max="12"/></div>
+        <div><div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">USD→RMB</div><input class="modal-input" type="number" id="m-usd" step="0.01"/></div>
+        <div><div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">TWD→RMB</div><input class="modal-input" type="number" id="m-twd" step="0.0001"/></div>
+      </div>
+      <div class="modal-group">
+        <span class="modal-group-label" style="color:var(--dao);">刀 — USD</span>
+        <div class="modal-rows">
+          <div class="modal-row"><span class="modal-field-label">Binance</span><input class="modal-input" type="number" id="f-binance" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">Firstrade</span><input class="modal-input" type="number" id="f-firstrade" placeholder="0" step="1"/></div>
+        </div>
+        <div class="modal-subtotal" id="dao-sub"></div>
+      </div>
+      <div class="modal-group">
+        <span class="modal-group-label" style="color:var(--ren);">人 — RMB</span>
+        <div class="modal-rows">
+          <div class="modal-row"><span class="modal-field-label">微信</span><input class="modal-input" type="number" id="f-wechat" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">支付宝</span><input class="modal-input" type="number" id="f-alipay" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">网商</span><input class="modal-input" type="number" id="f-wangshang" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">工商</span><input class="modal-input" type="number" id="f-gsyh" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">招商</span><input class="modal-input" type="number" id="f-zsyh" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">富邦</span><input class="modal-input" type="number" id="f-fubang" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">杭州</span><input class="modal-input" type="number" id="f-hangzhou" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">北京</span><input class="modal-input" type="number" id="f-beijing" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">广州</span><input class="modal-input" type="number" id="f-guangzhou" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">阿里奖金</span><input class="modal-input" type="number" id="f-alibonusrmb" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">借贷（小黑）</span><input class="modal-input" type="number" id="f-debt" placeholder="0" step="1"/></div>
+        </div>
+        <div class="modal-subtotal" id="ren-sub"></div>
+      </div>
+      <div class="modal-group">
+        <span class="modal-group-label" style="color:var(--tai);">台 — TWD</span>
+        <div class="modal-rows">
+          <div class="modal-row"><span class="modal-field-label">国泰</span><input class="modal-input" type="number" id="f-cathay" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">国泰证券</span><input class="modal-input" type="number" id="f-cathaysec" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">元大</span><input class="modal-input" type="number" id="f-yuanta" placeholder="0" step="1"/></div>
+          <div class="modal-row"><span class="modal-field-label">台新</span><input class="modal-input" type="number" id="f-taishin" placeholder="0" step="1"/></div>
+        </div>
+        <div class="modal-subtotal" id="tai-sub"></div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeModal()">取消</button>
+        <button class="btn-save" onclick="saveSnapshot()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WORKER = 'https://notion-asset-proxy.hsnu130821.workers.dev';
+const fmtRMB = n => '¥' + Math.round(n).toLocaleString('zh-CN');
+const fmtN = (n, cur) => {
+  if (cur === 'USD') return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
+  if (cur === 'TWD') return (n < 0 ? '-NT$' : 'NT$') + Math.abs(Math.round(n)).toLocaleString();
+  return (n < 0 ? '-¥' : '¥') + Math.abs(Math.round(n)).toLocaleString();
+};
+const toRMB = (v, cur, s) => cur === 'USD' ? v * s.rateUSD : cur === 'TWD' ? v * s.rateTWD : v;
+const daoTotal = s => (s.binance + s.firstrade) * s.rateUSD;
+const renTotal = s => ['wechat','alipay','wangshang','gsyh','zsyh','fubang','hangzhou','beijing','guangzhou','alibonusrmb','debt'].reduce((a,k) => a + s[k], 0);
+const taiTotal = s => ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => a + s[k], 0) * s.rateTWD;
+const grandTotal = s => daoTotal(s) + renTotal(s) + taiTotal(s);
+
+let snapshots = [];
+let currentIdx = 0;
+let expandState = { dao: true, ren: true, tai: true };
+let trendChart = null;
+let editingId = null;
+
+async function loadSnapshots() {
+  try {
+    const r = await fetch(`${WORKER}/snapshots`);
+    if (!r.ok) throw new Error('加载失败');
+    snapshots = await r.json();
+    snapshots.sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month));
+    if (snapshots.length === 0) {
+      document.getElementById('status-msg').textContent = '暂无数据，点右上角「录入」添加第一条快照';
+      document.getElementById('main-content').innerHTML = '<div class="status">暂无数据，点右上角「＋ 录入」添加第一条快照</div>';
+      document.getElementById('total-rmb').textContent = '¥0';
+      document.getElementById('month-label').textContent = '—';
+      return;
+    }
+    currentIdx = snapshots.length - 1;
+    renderAll();
+  } catch (e) {
+    document.getElementById('main-content').innerHTML = `<div class="status error-msg">加载失败：${e.message}</div>`;
+  }
+}
+
+function navigate(dir) {
+  const n = currentIdx + dir;
+  if (n < 0 || n >= snapshots.length) return;
+  currentIdx = n;
+  renderAll();
+}
+
+function renderAll() {
+  if (!snapshots.length) return;
+  const s = snapshots[currentIdx];
+  const gt = grandTotal(s);
+  const prev = snapshots[currentIdx - 1];
+  const prevGt = prev ? grandTotal(prev) : null;
+
+  document.getElementById('month-label').textContent = `${s.year}.${s.month}`;
+  document.getElementById('total-rmb').textContent = fmtRMB(gt);
+
+  const deltaEl = document.getElementById('total-delta');
+  if (prevGt !== null) {
+    const d = gt - prevGt;
+    deltaEl.textContent = (d >= 0 ? '▲ +' : '▼ ') + fmtRMB(Math.abs(d)) + ' 较上月';
+    deltaEl.className = 'total-delta ' + (d >= 0 ? 'delta-pos' : 'delta-neg');
+  } else {
+    deltaEl.textContent = '';
+  }
+
+  const dt = daoTotal(s), rt = renTotal(s), tt = taiTotal(s);
+
+  const sections = [
+    { key: 'dao', tag: '刀', tagCls: 'tag-dao', barCls: 'bar-dao', cur: 'USD',
+      native: s.binance + s.firstrade, rmb: dt,
+      accounts: [{ name: 'Binance', val: s.binance }, { name: 'Firstrade', val: s.firstrade }] },
+    { key: 'ren', tag: '人', tagCls: 'tag-ren', barCls: 'bar-ren', cur: 'RMB',
+      native: rt, rmb: rt,
+      accounts: [
+        { name: '微信', val: s.wechat }, { name: '支付宝', val: s.alipay }, { name: '网商', val: s.wangshang },
+        { name: '工商', val: s.gsyh }, { name: '招商', val: s.zsyh }, { name: '富邦', val: s.fubang },
+        { name: '杭州', val: s.hangzhou }, { name: '北京', val: s.beijing }, { name: '广州', val: s.guangzhou },
+        { name: '阿里奖金', val: s.alibonusrmb }, { name: '借贷小黑', val: s.debt }
+      ] },
+    { key: 'tai', tag: '台', tagCls: 'tag-tai', barCls: 'bar-tai', cur: 'TWD',
+      native: ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => a + s[k], 0), rmb: tt,
+      accounts: [
+        { name: '国泰', val: s.cathay }, { name: '国泰证券', val: s.cathaysec },
+        { name: '元大', val: s.yuanta }, { name: '台新', val: s.taishin }
+      ] }
+  ];
+
+  let html = `<div class="summary">
+    <div class="sum-card"><span class="sum-tag tag-dao">刀 USD</span><div class="sum-native">${fmtN(s.binance + s.firstrade, 'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-ren">人 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${(rt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-tai">台 TWD</span><div class="sum-native">${fmtN(['cathay','cathaysec','yuanta','taishin'].reduce((a,k)=>a+s[k],0), 'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
+  </div>`;
+
+  sections.forEach(sec => {
+    const open = expandState[sec.key];
+    const gpct = (sec.rmb / gt * 100).toFixed(1) + '%';
+    let rows = sec.accounts.map(a => {
+      const rmbVal = toRMB(a.val, sec.cur, s);
+      const pct = gt > 0 ? rmbVal / gt * 100 : 0;
+      const barW = Math.min(Math.abs(pct), 100).toFixed(1);
+      const isNeg = a.val < 0, isZero = a.val === 0;
+      const valCls = isNeg ? 'acct-val acct-val-neg' : isZero ? 'acct-val acct-val-zero' : 'acct-val';
+      const bc = isNeg ? 'bar-neg' : sec.barCls;
+      const rmbStr = sec.cur !== 'RMB' ? `<span class="acct-rmb">≈ ${fmtRMB(rmbVal)}</span>` : `<span class="acct-rmb"></span>`;
+      const pctStr = isZero ? '—' : (pct >= 0 ? '' : '-') + Math.abs(pct).toFixed(1) + '%';
+      return `<div class="acct-row">
+        <span class="acct-name">${a.name}</span>
+        <span class="${valCls}">${fmtN(a.val, sec.cur)}</span>
+        ${rmbStr}
+        <div class="bar-wrap"><div class="bar-fill ${bc}" style="width:${barW}%"></div></div>
+        <span class="acct-gpct">${pctStr}</span>
+      </div>`;
+    }).join('');
+
+    html += `<div class="section">
+      <div class="section-header ${open ? 'open' : ''}" onclick="toggleSection('${sec.key}')">
+        <div class="sec-left">
+          <span class="sum-tag ${sec.tagCls}">${sec.tag}</span>
+          <span style="font-size:13px;font-family:var(--mono);color:var(--muted);">${sec.cur === 'USD' ? 'USD' : sec.cur === 'TWD' ? 'TWD' : 'RMB'}</span>
+        </div>
+        <div class="sec-right">
+          <span class="sec-total">${fmtN(sec.native, sec.cur)}</span>
+          <span class="sec-rmb-label">≈ ${fmtRMB(sec.rmb)}</span>
+          <span class="sec-gpct">${gpct}</span>
+          <span class="sec-caret ${open ? 'open' : ''}">&#9654;</span>
+        </div>
+      </div>
+      ${open ? `<div class="section-body">${rows}</div>` : ''}
+    </div>`;
+  });
+
+  html += `<div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-label">大类占比</div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--dao)"></span>刀 ${(dt/gt*100).toFixed(1)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--ren)"></span>人 ${(rt/gt*100).toFixed(1)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--tai)"></span>台 ${(tt/gt*100).toFixed(1)}%</span>
+      </div>
+      <div style="position:relative;height:160px;"><canvas id="pieChart" role="img" aria-label="资产大类占比"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">总资产走势</div>
+      <div style="position:relative;height:180px;"><canvas id="trendChart" role="img" aria-label="总资产走势"></canvas></div>
+    </div>
+  </div>`;
+
+  document.getElementById('main-content').innerHTML = html;
+
+  // Pie chart
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: { labels: ['刀','人','台'], datasets: [{ data: [Math.round(dt), Math.round(rt), Math.round(tt)], backgroundColor: ['#4a9eff','#3ecf8e','#a78bfa'], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + (ctx.parsed / gt * 100).toFixed(1) + '%' } } } }
+  });
+
+  // Trend chart
+  const labels = snapshots.map(s => `${s.year}.${s.month}`);
+  const totals = snapshots.map(s => Math.round(grandTotal(s)));
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: '总资产', data: totals, borderColor: '#4a9eff', backgroundColor: 'rgba(74,158,255,0.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#4a9eff', fill: true, tension: 0.3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '¥' + ctx.parsed.y.toLocaleString() } } },
+      scales: {
+        x: { ticks: { font: { size: 11, family: 'DM Mono' }, color: '#6e6e78' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { callback: v => '¥' + (v / 10000).toFixed(0) + 'w', font: { size: 10, family: 'DM Mono' }, color: '#6e6e78' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+function toggleSection(key) {
+  expandState[key] = !expandState[key];
+  renderAll();
+}
+
+function openModal(snap) {
+  editingId = snap ? snap.id : null;
+  const now = new Date();
+  document.getElementById('modal-title').textContent = snap ? `编辑 ${snap.year}.${snap.month}` : '录入月度快照';
+  document.getElementById('m-year').value = snap ? snap.year : now.getFullYear();
+  document.getElementById('m-month').value = snap ? snap.month : now.getMonth() + 1;
+  document.getElementById('m-usd').value = snap ? snap.rateUSD : '7.25';
+  document.getElementById('m-twd').value = snap ? snap.rateTWD : '0.2233';
+  const fields = ['binance','firstrade','wechat','alipay','wangshang','gsyh','zsyh','fubang','hangzhou','beijing','guangzhou','alibonusrmb','debt','cathay','cathaysec','yuanta','taishin'];
+  fields.forEach(f => { document.getElementById('f-' + f).value = snap ? snap[f] : ''; });
+  setupLiveCalc();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editingId = null;
+}
+
+function setupLiveCalc() {
+  function upd() {
+    const usd = parseFloat(document.getElementById('m-usd').value) || 7.25;
+    const twd = parseFloat(document.getElementById('m-twd').value) || 0.2233;
+    const d = ['binance','firstrade'].reduce((a,id) => a + (parseFloat(document.getElementById('f-'+id).value)||0), 0);
+    const r = ['wechat','alipay','wangshang','gsyh','zsyh','fubang','hangzhou','beijing','guangzhou','alibonusrmb','debt'].reduce((a,id) => a + (parseFloat(document.getElementById('f-'+id).value)||0), 0);
+    const t = ['cathay','cathaysec','yuanta','taishin'].reduce((a,id) => a + (parseFloat(document.getElementById('f-'+id).value)||0), 0);
+    document.getElementById('dao-sub').textContent = `合计 $${Math.round(d).toLocaleString()} ≈ ¥${Math.round(d*usd).toLocaleString()}`;
+    document.getElementById('ren-sub').textContent = `合计 ¥${Math.round(r).toLocaleString()}`;
+    document.getElementById('tai-sub').textContent = `合计 NT$${Math.round(t).toLocaleString()} ≈ ¥${Math.round(t*twd).toLocaleString()}`;
+  }
+  document.querySelectorAll('.modal-input').forEach(el => el.addEventListener('input', upd));
+  upd();
+}
+
+async function saveSnapshot() {
+  const year = parseInt(document.getElementById('m-year').value);
+  const month = parseInt(document.getElementById('m-month').value);
+  if (!year || !month) return;
+  const snap = {
+    year, month,
+    rateUSD: parseFloat(document.getElementById('m-usd').value) || 7.25,
+    rateTWD: parseFloat(document.getElementById('m-twd').value) || 0.2233,
+  };
+  ['binance','firstrade','wechat','alipay','wangshang','gsyh','zsyh','fubang','hangzhou','beijing','guangzhou','alibonusrmb','debt','cathay','cathaysec','yuanta','taishin'].forEach(f => {
+    snap[f] = parseFloat(document.getElementById('f-'+f).value) || 0;
+  });
+
+  const btn = document.querySelector('.btn-save');
+  btn.textContent = '保存中...';
+  btn.disabled = true;
+
+  try {
+    let result;
+    if (editingId) {
+      const r = await fetch(`${WORKER}/snapshots/${editingId}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(snap) });
+      result = await r.json();
+      const idx = snapshots.findIndex(s => s.id === editingId);
+      if (idx >= 0) snapshots[idx] = result;
+    } else {
+      const r = await fetch(`${WORKER}/snapshots`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(snap) });
+      result = await r.json();
+      snapshots.push(result);
+      snapshots.sort((a,b) => a.year*100+a.month - (b.year*100+b.month));
+    }
+    currentIdx = snapshots.findIndex(s => s.id === result.id);
+    closeModal();
+    renderAll();
+  } catch(e) {
+    alert('保存失败：' + e.message);
+  } finally {
+    btn.textContent = '保存';
+    btn.disabled = false;
+  }
+}
+
+loadSnapshots();
+</script>
+</body>
+</html>

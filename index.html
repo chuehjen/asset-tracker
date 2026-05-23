@@ -25,7 +25,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .header-currencies { display: flex; gap: 20px; margin-top: 14px; }
 .hcur { display: flex; flex-direction: column; gap: 2px; }
 .hcur-label { font-size: 10px; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
-.hcur-value { font-size: 22px; font-family: var(--mono); font-weight: 400; }
+.hcur-value { font-size: 28px; font-family: var(--mono); font-weight: 300; letter-spacing: -0.02em; }
 .hcur-rmb { font-size: 11px; font-family: var(--mono); color: var(--muted); }
 .hcur-sep { width: 1px; background: var(--border); align-self: stretch; margin: 2px 0; }
 .header-right { display: flex; gap: 12px; align-items: center; flex-shrink: 0; text-align: right; }
@@ -103,8 +103,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   <div class="header">
     <div class="header-left">
       <h1>资产快照</h1>
-      <div class="total-rmb" id="total-rmb">—</div>
-      <div class="total-delta" id="total-delta"></div>
       <div class="header-currencies" id="header-currencies"></div>
     </div>
     <div class="header-right">
@@ -226,34 +224,48 @@ function renderAll() {
   const taiNative = ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => a + s[k], 0);
   const daoNative = s.binance + s.firstrade;
 
-  document.getElementById('total-rmb').textContent = fmtRMB(gt);
+  // delta in header right
 
   const prev = snapshots[currentIdx - 1];
-  const deltaEl = document.getElementById('header-delta');
-  if (prev) {
-    const d = gt - grandTotal(prev);
-    deltaEl.innerHTML = `<span style="font-size:12px;font-family:var(--mono);${d>=0?'color:var(--ren)':'color:var(--danger)'}">${d>=0?'▲ +':'▼ '}${fmtRMB(Math.abs(d))}<br><span style="color:var(--dim);font-size:11px;">较上月</span></span>`;
-  } else { deltaEl.innerHTML = ''; }
-  document.getElementById('total-delta').textContent = '';
+  // delta now rendered inline in header-currencies
 
   const gtInTWD = Math.round(gt / s.rateTWD);
   const gtInUSD = Math.round(gt / s.rateUSD);
+
+  let twdDelta = '', rmbDelta = '', usdDelta = '';
+  if (prev) {
+    const pgt = grandTotal(prev);
+    const pTWD = Math.round(pgt / prev.rateTWD);
+    const pUSD = Math.round(pgt / prev.rateUSD);
+    const dRMB = Math.round(gt - pgt);
+    const dTWD = gtInTWD - pTWD;
+    const dUSD = gtInUSD - pUSD;
+    const fmt2 = (d, prefix) => `<span style="font-size:11px;font-family:var(--mono);${d>=0?'color:var(--ren)':'color:var(--danger)'}">${d>=0?'▲ +':'▼ '}${prefix}${Math.abs(d).toLocaleString()} 较上月</span>`;
+    twdDelta = fmt2(dTWD, 'NT$');
+    rmbDelta = fmt2(dRMB, '¥');
+    usdDelta = fmt2(dUSD, '$');
+  }
+
+  document.getElementById('header-delta').innerHTML = '';
   document.getElementById('header-currencies').innerHTML = `
     <div class="hcur">
       <span class="hcur-label" style="color:var(--tai)">折台币</span>
       <span class="hcur-value" style="color:var(--tai)">NT$${gtInTWD.toLocaleString()}</span>
+      ${twdDelta ? `<div style="margin:2px 0">${twdDelta}</div>` : '<div style="margin:2px 0;height:16px"></div>'}
       <span class="hcur-rmb">汇率 ${s.rateTWD}</span>
     </div>
     <div class="hcur-sep"></div>
     <div class="hcur">
       <span class="hcur-label" style="color:var(--ren)">人民币</span>
       <span class="hcur-value" style="color:var(--ren)">${fmtRMB(gt)}</span>
+      ${rmbDelta ? `<div style="margin:2px 0">${rmbDelta}</div>` : '<div style="margin:2px 0;height:16px"></div>'}
       <span class="hcur-rmb">基准货币</span>
     </div>
     <div class="hcur-sep"></div>
     <div class="hcur">
       <span class="hcur-label" style="color:var(--dao)">折美金</span>
       <span class="hcur-value" style="color:var(--dao)">$${gtInUSD.toLocaleString()}</span>
+      ${usdDelta ? `<div style="margin:2px 0">${usdDelta}</div>` : '<div style="margin:2px 0;height:16px"></div>'}
       <span class="hcur-rmb">汇率 ${s.rateUSD}</span>
     </div>`;
 

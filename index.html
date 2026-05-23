@@ -33,7 +33,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
 .header-left h1 { font-size: 13px; font-weight: 400; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; font-family: var(--mono); }
 .total-rmb { font-size: 42px; font-weight: 300; font-family: var(--mono); letter-spacing: -0.02em; color: var(--text); line-height: 1; }
-.total-delta { font-size: 13px; font-family: var(--mono); margin-top: 6px; }
+.header-currencies { display: flex; gap: 16px; margin-top: 12px; }
+.hcur { display: flex; flex-direction: column; gap: 2px; }
+.hcur-label { font-size: 10px; font-family: var(--mono); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.hcur-value { font-size: 15px; font-family: var(--mono); font-weight: 500; }
+.hcur-rmb { font-size: 11px; font-family: var(--mono); color: var(--muted); }
+.hcur-sep { width: 1px; background: var(--border); align-self: stretch; margin: 2px 0; }
 .delta-pos { color: var(--ren); }
 .delta-neg { color: var(--danger); }
 .header-right { display: flex; gap: 8px; align-items: center; }
@@ -92,6 +97,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
 .chart-label { font-size: 11px; font-family: var(--mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
 .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.chart-legend2 { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
@@ -132,6 +138,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
       <h1>资产快照</h1>
       <div class="total-rmb" id="total-rmb">—</div>
       <div class="total-delta" id="total-delta"></div>
+      <div class="header-currencies" id="header-currencies"></div>
     </div>
     <div class="header-right">
       <div class="month-nav">
@@ -263,6 +270,28 @@ function renderAll() {
     deltaEl.textContent = '';
   }
 
+  // Header currency strip
+  const taiNativeVal = Math.round(['cathay','cathaysec','yuanta','taishin'].reduce((a,k)=>a+s[k],0));
+  document.getElementById('header-currencies').innerHTML = `
+    <div class="hcur">
+      <span class="hcur-label" style="color:var(--tai)">TWD</span>
+      <span class="hcur-value" style="color:var(--tai)">NT$${taiNativeVal.toLocaleString()}</span>
+      <span class="hcur-rmb">≈ ${fmtRMB(tt)}</span>
+    </div>
+    <div class="hcur-sep"></div>
+    <div class="hcur">
+      <span class="hcur-label" style="color:var(--ren)">RMB</span>
+      <span class="hcur-value" style="color:var(--ren)">${fmtRMB(rt)}</span>
+      <span class="hcur-rmb">${(rt/gt*100).toFixed(1)}% 占总</span>
+    </div>
+    <div class="hcur-sep"></div>
+    <div class="hcur">
+      <span class="hcur-label" style="color:var(--dao)">USD</span>
+      <span class="hcur-value" style="color:var(--dao)">$${Math.round(s.binance + s.firstrade).toLocaleString()}</span>
+      <span class="hcur-rmb">≈ ${fmtRMB(dt)}</span>
+    </div>
+  `;
+
   const dt = daoTotal(s), rt = renTotal(s), tt = taiTotal(s);
 
   const sections = [
@@ -285,10 +314,25 @@ function renderAll() {
       ] }
   ];
 
-  let html = `<div class="summary">
-    <div class="sum-card"><span class="sum-tag tag-dao">刀 USD</span><div class="sum-native">${fmtN(s.binance + s.firstrade, 'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
+  let html = `<div class="chart-grid" style="margin-bottom:1.5rem;margin-top:0;">
+    <div class="chart-card">
+      <div class="chart-label">大类占比</div>
+      <div class="chart-legend2">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--tai)"></span>台 ${(tt/gt*100).toFixed(1)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--ren)"></span>人 ${(rt/gt*100).toFixed(1)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--dao)"></span>刀 ${(dt/gt*100).toFixed(1)}%</span>
+      </div>
+      <div style="position:relative;height:160px;"><canvas id="pieChart" role="img" aria-label="资产大类占比"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">总资产走势</div>
+      <div style="position:relative;height:180px;"><canvas id="trendChart" role="img" aria-label="总资产走势"></canvas></div>
+    </div>
+  </div>
+  <div class="summary">
+    <div class="sum-card"><span class="sum-tag tag-tai">台 TWD</span><div class="sum-native">${fmtN(taiNativeVal, 'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
     <div class="sum-card"><span class="sum-tag tag-ren">人 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${(rt/gt*100).toFixed(1)}% 占总</div></div>
-    <div class="sum-card"><span class="sum-tag tag-tai">台 TWD</span><div class="sum-native">${fmtN(['cathay','cathaysec','yuanta','taishin'].reduce((a,k)=>a+s[k],0), 'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-dao">刀 USD</span><div class="sum-native">${fmtN(s.binance + s.firstrade, 'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
   </div>`;
 
   sections.forEach(sec => {
@@ -329,28 +373,14 @@ function renderAll() {
     </div>`;
   });
 
-  html += `<div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-label">大类占比</div>
-      <div class="chart-legend">
-        <span class="legend-item"><span class="legend-dot" style="background:var(--dao)"></span>刀 ${(dt/gt*100).toFixed(1)}%</span>
-        <span class="legend-item"><span class="legend-dot" style="background:var(--ren)"></span>人 ${(rt/gt*100).toFixed(1)}%</span>
-        <span class="legend-item"><span class="legend-dot" style="background:var(--tai)"></span>台 ${(tt/gt*100).toFixed(1)}%</span>
-      </div>
-      <div style="position:relative;height:160px;"><canvas id="pieChart" role="img" aria-label="资产大类占比"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-label">总资产走势</div>
-      <div style="position:relative;height:180px;"><canvas id="trendChart" role="img" aria-label="总资产走势"></canvas></div>
-    </div>
-  </div>`;
+  html += `<div style="height:1px"></div>`;
 
   document.getElementById('main-content').innerHTML = html;
 
   // Pie chart
   new Chart(document.getElementById('pieChart'), {
     type: 'doughnut',
-    data: { labels: ['刀','人','台'], datasets: [{ data: [Math.round(dt), Math.round(rt), Math.round(tt)], backgroundColor: ['#4a9eff','#3ecf8e','#a78bfa'], borderWidth: 0 }] },
+    data: { labels: ['台','人','刀'], datasets: [{ data: [Math.round(tt), Math.round(rt), Math.round(dt)], backgroundColor: ['#a78bfa','#3ecf8e','#4a9eff'], borderWidth: 0 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + (ctx.parsed / gt * 100).toFixed(1) + '%' } } } }
   });
 

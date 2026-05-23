@@ -129,7 +129,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
         <div><div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">TWD→RMB</div><input class="modal-input" type="number" id="m-twd" step="0.0001"/></div>
       </div>
       <div class="modal-group">
-        <span class="modal-group-label" style="color:var(--dao);">刀 — USD</span>
+        <span class="modal-group-label" style="color:var(--dao);">美金 — USD</span>
         <div class="modal-rows">
           <div class="modal-row"><span class="modal-field-label">Binance</span><input class="modal-input" type="number" id="f-binance" placeholder="0"/></div>
           <div class="modal-row"><span class="modal-field-label">Firstrade</span><input class="modal-input" type="number" id="f-firstrade" placeholder="0"/></div>
@@ -137,7 +137,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
         <div class="modal-subtotal" id="dao-sub"></div>
       </div>
       <div class="modal-group">
-        <span class="modal-group-label" style="color:var(--ren);">人 — RMB</span>
+        <span class="modal-group-label" style="color:var(--ren);">人民币 — RMB</span>
         <div class="modal-rows">
           <div class="modal-row"><span class="modal-field-label">微信</span><input class="modal-input" type="number" id="f-wechat" placeholder="0"/></div>
           <div class="modal-row"><span class="modal-field-label">支付宝</span><input class="modal-input" type="number" id="f-alipay" placeholder="0"/></div>
@@ -154,7 +154,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
         <div class="modal-subtotal" id="ren-sub"></div>
       </div>
       <div class="modal-group">
-        <span class="modal-group-label" style="color:var(--tai);">台 — TWD</span>
+        <span class="modal-group-label" style="color:var(--tai);">台币 — TWD</span>
         <div class="modal-rows">
           <div class="modal-row"><span class="modal-field-label">国泰</span><input class="modal-input" type="number" id="f-cathay" placeholder="0"/></div>
           <div class="modal-row"><span class="modal-field-label">国泰证券</span><input class="modal-input" type="number" id="f-cathaysec" placeholder="0"/></div>
@@ -235,31 +235,33 @@ function renderAll() {
     deltaEl.className = 'total-delta ' + (d >= 0 ? 'delta-pos' : 'delta-neg');
   } else { deltaEl.textContent = ''; }
 
+  const gtInTWD = Math.round(gt / s.rateTWD);
+  const gtInUSD = Math.round(gt / s.rateUSD);
   document.getElementById('header-currencies').innerHTML = `
     <div class="hcur">
-      <span class="hcur-label" style="color:var(--tai)">TWD</span>
-      <span class="hcur-value" style="color:var(--tai)">NT$${Math.round(taiNative).toLocaleString()}</span>
-      <span class="hcur-rmb">≈ ${fmtRMB(tt)}</span>
+      <span class="hcur-label" style="color:var(--tai)">折台币</span>
+      <span class="hcur-value" style="color:var(--tai)">NT$${gtInTWD.toLocaleString()}</span>
+      <span class="hcur-rmb">汇率 ${s.rateTWD}</span>
     </div>
     <div class="hcur-sep"></div>
     <div class="hcur">
-      <span class="hcur-label" style="color:var(--ren)">RMB</span>
-      <span class="hcur-value" style="color:var(--ren)">${fmtRMB(rt)}</span>
-      <span class="hcur-rmb">${(rt/gt*100).toFixed(1)}% 占总</span>
+      <span class="hcur-label" style="color:var(--ren)">人民币</span>
+      <span class="hcur-value" style="color:var(--ren)">${fmtRMB(gt)}</span>
+      <span class="hcur-rmb">基准货币</span>
     </div>
     <div class="hcur-sep"></div>
     <div class="hcur">
-      <span class="hcur-label" style="color:var(--dao)">USD</span>
-      <span class="hcur-value" style="color:var(--dao)">$${Math.round(daoNative).toLocaleString()}</span>
-      <span class="hcur-rmb">≈ ${fmtRMB(dt)}</span>
+      <span class="hcur-label" style="color:var(--dao)">折美金</span>
+      <span class="hcur-value" style="color:var(--dao)">$${gtInUSD.toLocaleString()}</span>
+      <span class="hcur-rmb">汇率 ${s.rateUSD}</span>
     </div>`;
 
   const sections = [
-    { key:'dao', tag:'刀', tagCls:'tag-dao', barCls:'bar-dao', cur:'USD', native: daoNative, rmb: dt,
+    { key:'dao', tag:'美金', tagCls:'tag-dao', barCls:'bar-dao', cur:'USD', native: daoNative, rmb: dt,
       accounts:[{name:'Binance',val:s.binance},{name:'Firstrade',val:s.firstrade}] },
-    { key:'ren', tag:'人', tagCls:'tag-ren', barCls:'bar-ren', cur:'RMB', native: rt, rmb: rt,
+    { key:'ren', tag:'人民币', tagCls:'tag-ren', barCls:'bar-ren', cur:'RMB', native: rt, rmb: rt,
       accounts:[{name:'微信',val:s.wechat},{name:'支付宝',val:s.alipay},{name:'网商',val:s.wangshang},{name:'工商',val:s.gsyh},{name:'招商',val:s.zsyh},{name:'富邦',val:s.fubang},{name:'杭州',val:s.hangzhou},{name:'北京',val:s.beijing},{name:'广州',val:s.guangzhou},{name:'阿里奖金',val:s.alibonusrmb},{name:'借贷小黑',val:s.debt}] },
-    { key:'tai', tag:'台', tagCls:'tag-tai', barCls:'bar-tai', cur:'TWD', native: taiNative, rmb: tt,
+    { key:'tai', tag:'台币', tagCls:'tag-tai', barCls:'bar-tai', cur:'TWD', native: taiNative, rmb: tt,
       accounts:[{name:'国泰',val:s.cathay},{name:'国泰证券',val:s.cathaysec},{name:'元大',val:s.yuanta},{name:'台新',val:s.taishin}] }
   ];
 
@@ -279,9 +281,9 @@ function renderAll() {
     </div>
   </div>
   <div class="summary">
-    <div class="sum-card"><span class="sum-tag tag-tai">台 TWD</span><div class="sum-native">${fmtN(taiNative,'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
-    <div class="sum-card"><span class="sum-tag tag-ren">人 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${(rt/gt*100).toFixed(1)}% 占总</div></div>
-    <div class="sum-card"><span class="sum-tag tag-dao">刀 USD</span><div class="sum-native">${fmtN(daoNative,'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-tai">台币 TWD</span><div class="sum-native">${fmtN(taiNative,'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-ren">人民币 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${(rt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-dao">美金 USD</span><div class="sum-native">${fmtN(daoNative,'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
   </div>`;
 
   sections.forEach(sec => {

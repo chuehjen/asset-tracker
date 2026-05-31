@@ -13,6 +13,8 @@
 - 总资产折算成三种货币显示，附环比涨跌
 - 各账户占总资产比例及进度条可视化
 - 总资产走势折线图 + 大类占比圆环图
+- AI 自然语言解析录入与资产解读
+- 删除月度快照（移入 Notion 垃圾箱，可恢复）
 - 数据存储于 Notion Database，多设备同步
 
 ## 账户结构
@@ -41,4 +43,11 @@ GitHub Pages（前端）→ Cloudflare Workers（CORS 代理）→ Notion API（
 
 直接编辑 `index.html`，push 到 `main` 分支后 GitHub Pages 自动部署。
 
-Cloudflare Worker 代码需在 [Cloudflare Dashboard](https://dash.cloudflare.com) 手动更新。
+Cloudflare Worker 代码在 `worker.js`，配置在 `wrangler.toml`。敏感信息不要写入代码，使用 Cloudflare Secrets：
+
+```bash
+wrangler secret put NOTION_TOKEN
+wrangler secret put DB_ID
+wrangler secret put LONGCAT_KEY
+wrangler deploy
+```

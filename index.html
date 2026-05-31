@@ -31,8 +31,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .nav-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 16px; }
 .nav-btn:hover { border-color: var(--dim); color: var(--text); }
 .month-label { font-family: var(--mono); font-size: 14px; color: var(--text); min-width: 60px; text-align: center; }
+.snapshot-actions { display: flex; gap: 8px; }
 .add-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0 14px; height: 32px; cursor: pointer; color: var(--muted); font-size: 13px; font-family: var(--sans); }
 .add-btn:hover { border-color: var(--dim); color: var(--text); }
+.delete-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0 12px; height: 32px; cursor: pointer; color: var(--muted); font-size: 13px; font-family: var(--sans); }
+.delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+.delete-btn:disabled { opacity: 0.45; cursor: wait; }
 
 /* AI analysis card */
 .analysis-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.5rem; }
@@ -134,7 +138,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
         <span class="month-label" id="month-label">—</span>
         <button class="nav-btn" onclick="navigate(1)">&#8250;</button>
       </div>
-      <button class="add-btn" onclick="openModal()">＋ 录入</button>
+      <div class="snapshot-actions">
+        <button class="delete-btn" id="delete-current-btn" onclick="deleteCurrentSnapshot()">删除</button>
+        <button class="add-btn" onclick="openModal()">＋ 录入</button>
+      </div>
     </div>
   </div>
 
@@ -245,6 +252,7 @@ const daoTotal = s => (s.binance + s.firstrade) * s.rateUSD;
 const renTotal = s => ['wechat','alipay','wangshang','gsyh','zsyh','fubang','hangzhou','beijing','guangzhou','alibonusrmb','debt'].reduce((a,k) => a + s[k], 0);
 const taiTotal = s => ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => a + s[k], 0) * s.rateTWD;
 const grandTotal = s => daoTotal(s) + renTotal(s) + taiTotal(s);
+const pct = (value, total) => total > 0 ? (value / total * 100).toFixed(1) : '0.0';
 
 let snapshots = [], currentIdx = 0, editingId = null;
 let expandState = { dao: true, ren: true, tai: true };
@@ -345,9 +353,9 @@ function renderAll() {
     <div class="chart-card">
       <div class="chart-label">大类占比</div>
       <div class="chart-legend">
-        <span class="legend-item"><span class="legend-dot" style="background:var(--tai)"></span>台币 ${(tt/gt*100).toFixed(1)}%</span>
-        <span class="legend-item"><span class="legend-dot" style="background:var(--ren)"></span>人民币 ${(rt/gt*100).toFixed(1)}%</span>
-        <span class="legend-item"><span class="legend-dot" style="background:var(--dao)"></span>美金 ${(dt/gt*100).toFixed(1)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--tai)"></span>台币 ${pct(tt,gt)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--ren)"></span>人民币 ${pct(rt,gt)}%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--dao)"></span>美金 ${pct(dt,gt)}%</span>
       </div>
       <div style="position:relative;height:160px;"><canvas id="pieChart"></canvas></div>
     </div>
@@ -358,9 +366,9 @@ function renderAll() {
   </div>
 
   <div class="summary">
-    <div class="sum-card"><span class="sum-tag tag-tai">台币 TWD</span><div class="sum-native">${fmtN(taiNative,'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${(tt/gt*100).toFixed(1)}% 占总</div></div>
-    <div class="sum-card"><span class="sum-tag tag-ren">人民币 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${(rt/gt*100).toFixed(1)}% 占总</div></div>
-    <div class="sum-card"><span class="sum-tag tag-dao">美金 USD</span><div class="sum-native">${fmtN(daoNative,'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${(dt/gt*100).toFixed(1)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-tai">台币 TWD</span><div class="sum-native">${fmtN(taiNative,'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${pct(tt,gt)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-ren">人民币 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${pct(rt,gt)}% 占总</div></div>
+    <div class="sum-card"><span class="sum-tag tag-dao">美金 USD</span><div class="sum-native">${fmtN(daoNative,'USD')}</div><div class="sum-rmb">≈ ${fmtRMB(dt)}</div><div class="sum-pct">${pct(dt,gt)}% 占总</div></div>
   </div>`;
 
   sections.forEach(sec => {
@@ -379,7 +387,7 @@ function renderAll() {
     html += `<div class="section">
       <div class="section-header ${open?'open':''}" onclick="toggleSection('${sec.key}')">
         <div class="sec-left"><span class="sum-tag ${sec.tagCls}">${sec.tag}</span><span style="font-size:13px;font-family:var(--mono);color:var(--muted)">${sec.cur}</span></div>
-        <div class="sec-right"><span class="sec-total">${fmtN(sec.native,sec.cur)}</span><span class="sec-rmb-label">≈ ${fmtRMB(sec.rmb)}</span><span class="sec-gpct">${(sec.rmb/gt*100).toFixed(1)}%</span><span class="sec-caret ${open?'open':''}">&#9654;</span></div>
+        <div class="sec-right"><span class="sec-total">${fmtN(sec.native,sec.cur)}</span><span class="sec-rmb-label">≈ ${fmtRMB(sec.rmb)}</span><span class="sec-gpct">${pct(sec.rmb,gt)}%</span><span class="sec-caret ${open?'open':''}">&#9654;</span></div>
       </div>
       ${open ? `<div class="section-body">${rows}</div>` : ''}
     </div>`;
@@ -391,7 +399,7 @@ function renderAll() {
   new Chart(document.getElementById('pieChart'), {
     type: 'doughnut',
     data: { labels:['台币','人民币','美金'], datasets:[{ data:[Math.round(tt),Math.round(rt),Math.round(dt)], backgroundColor:['#a78bfa','#3ecf8e','#4a9eff'], borderWidth:0 }] },
-    options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+(ctx.parsed/gt*100).toFixed(1)+'%'}} } }
+    options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+pct(ctx.parsed,gt)+'%'}} } }
   });
   const labels = snapshots.map(s => `${s.year}.${s.month}`);
   const totals = snapshots.map(s => Math.round(grandTotal(s)));
@@ -422,6 +430,39 @@ async function fetchAnalysis(current, previous) {
 }
 
 function toggleSection(key) { expandState[key] = !expandState[key]; renderAll(); }
+
+async function deleteCurrentSnapshot() {
+  const snap = snapshots[currentIdx];
+  if (!snap) return;
+  const ok = confirm(`确认删除 ${snap.year}.${snap.month} 这条资产快照？\n\n删除后会进入 Notion 垃圾箱，可在 Notion 中恢复。`);
+  if (!ok) return;
+
+  const btn = document.getElementById('delete-current-btn');
+  if (btn) { btn.textContent = '删除中...'; btn.disabled = true; }
+
+  try {
+    const r = await fetch(`${WORKER}/snapshots/${snap.id}`, { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok || data.error) throw new Error(data.error ? JSON.stringify(data.error) : '删除失败');
+
+    const deletedIdx = currentIdx;
+    snapshots = snapshots.filter(item => item.id !== snap.id);
+    if (!snapshots.length) {
+      currentIdx = 0;
+      document.getElementById('header-currencies').innerHTML = '';
+      document.getElementById('month-label').textContent = '—';
+      document.getElementById('main-content').innerHTML = '<div class="status">暂无数据，点右上角「＋ 录入」添加第一条快照</div>';
+      return;
+    }
+
+    currentIdx = Math.min(deletedIdx, snapshots.length - 1);
+    renderAll();
+  } catch(e) {
+    alert('删除失败：' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '删除'; btn.disabled = false; }
+  }
+}
 
 async function openModal(snap) {
   editingId = snap ? snap.id : null;

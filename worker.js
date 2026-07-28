@@ -7,9 +7,9 @@ var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name
 var __defProp22 = Object.defineProperty;
 var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
 var CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://chuehjen.github.io",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
+  "Access-Control-Allow-Headers": "Content-Type, X-App-Key"
 };
 var FIELDS = ["year", "month", "rateUSD", "rateTWD", "binance", "firstrade", "wechat", "alipay", "wangshang", "gsyh", "zsyh", "fubang", "hangzhou", "beijing", "guangzhou", "alibonusrmb", "debt", "cathay", "cathaysec", "yuanta", "taishin"];
 var PARSE_ALIASES = [
@@ -124,6 +124,9 @@ var worker_source_default = {
     const DB_ID = env.DB_ID;
     const LONGCAT_KEY = env.LONGCAT_KEY;
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    if (request.headers.get("X-App-Key") !== env.APP_KEY) {
+      return json({ error: "Unauthorized" }, 401);
+    }
     const url = new URL(request.url);
     const path = url.pathname;
     try {

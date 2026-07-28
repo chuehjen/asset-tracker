@@ -254,12 +254,35 @@ const taiTotal = s => ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => 
 const grandTotal = s => daoTotal(s) + renTotal(s) + taiTotal(s);
 const pct = (value, total) => total > 0 ? (value / total * 100).toFixed(1) : '0.0';
 
+const APP_KEY_STORAGE = 'assetTrackerAppKey';
+let cachedAppKey = localStorage.getItem(APP_KEY_STORAGE) || '';
+
+function promptForAppKey() {
+  const key = prompt('请输入访问密码：') || '';
+  cachedAppKey = key;
+  if (key) localStorage.setItem(APP_KEY_STORAGE, key);
+  else localStorage.removeItem(APP_KEY_STORAGE);
+  return key;
+}
+
+async function authFetch(url, options = {}) {
+  if (!cachedAppKey) promptForAppKey();
+  const withKey = (key) => ({ ...options, headers: { ...(options.headers || {}), 'X-App-Key': key } });
+  let res = await fetch(url, withKey(cachedAppKey));
+  if (res.status === 401) {
+    localStorage.removeItem(APP_KEY_STORAGE);
+    cachedAppKey = promptForAppKey();
+    res = await fetch(url, withKey(cachedAppKey));
+  }
+  return res;
+}
+
 let snapshots = [], currentIdx = 0, editingId = null;
 let expandState = { dao: true, ren: true, tai: true };
 
 async function loadSnapshots() {
   try {
-    const r = await fetch(`${WORKER}/snapshots`);
+    const r = await authFetch(`${WORKER}/snapshots`);
     if (!r.ok) throw new Error('请求失败 ' + r.status);
     snapshots = await r.json();
     if (!Array.isArray(snapshots)) throw new Error(JSON.stringify(snapshots));
@@ -415,7 +438,7 @@ function renderAll() {
 
 async function fetchAnalysis(current, previous) {
   try {
-    const r = await fetch(`${WORKER}/analyze`, {
+    const r = await authFetch(`${WORKER}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ current, previous: previous || null })
@@ -441,7 +464,7 @@ async function deleteCurrentSnapshot() {
   if (btn) { btn.textContent = '删除中...'; btn.disabled = true; }
 
   try {
-    const r = await fetch(`${WORKER}/snapshots/${snap.id}`, { method: 'DELETE' });
+    const r = await authFetch(`${WORKER}/snapshots/${snap.id}`, { method: 'DELETE' });
     const data = await r.json();
     if (!r.ok || data.error) throw new Error(data.error ? JSON.stringify(data.error) : '删除失败');
 
@@ -484,7 +507,7 @@ async function openModal(snap) {
     document.getElementById('usd-loading').textContent = '';
     document.getElementById('twd-loading').textContent = '';
   } else {
-    fetch(`${WORKER}/rates`).then(r => r.json()).then(data => {
+    authFetch(`${WORKER}/rates`).then(r => r.json()).then(data => {
       document.getElementById('m-usd').value = data.rateUSD;
       document.getElementById('m-twd').value = data.rateTWD;
       document.getElementById('usd-loading').textContent = '';
@@ -526,7 +549,7 @@ async function parseWithAI() {
   const btn = document.getElementById('ai-parse-btn');
   btn.textContent = '✦ 解析中...'; btn.disabled = true;
   try {
-    const r = await fetch(`${WORKER}/parse`, {
+    const r = await authFetch(`${WORKER}/parse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
@@ -559,12 +582,12 @@ async function saveSnapshot() {
   try {
     let result;
     if (editingId) {
-      const r = await fetch(`${WORKER}/snapshots/${editingId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      const r = await authFetch(`${WORKER}/snapshots/${editingId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
       result = await r.json();
       const idx = snapshots.findIndex(s => s.id === editingId);
       if (idx >= 0) snapshots[idx] = result;
     } else {
-      const r = await fetch(`${WORKER}/snapshots`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      const r = await authFetch(`${WORKER}/snapshots`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
       result = await r.json();
       snapshots.push(result);
       snapshots.sort((a,b) => a.year*100+a.month-(b.year*100+b.month));

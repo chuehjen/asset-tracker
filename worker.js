@@ -221,7 +221,7 @@ ${text}`;
         const resp = await fetch("https://api.longcat.chat/anthropic/v1/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LONGCAT_KEY}`, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: "LongCat-Flash-Chat", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] })
+          body: JSON.stringify({ model: "LongCat-2.0", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] })
         });
         const data = await resp.json();
         const text2 = data.content?.[0]?.text || "";
@@ -266,7 +266,7 @@ ${prev ? `\u4E0A\u6708\u603B\u8D44\u4EA7\uFF1A${money(prev.total)}\uFF0C\u672C\u
           const resp = await fetch("https://api.longcat.chat/anthropic/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LONGCAT_KEY}`, "anthropic-version": "2023-06-01" },
-            body: JSON.stringify({ model: "LongCat-Flash-Chat", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] }),
+            body: JSON.stringify({ model: "LongCat-2.0", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] }),
             signal: controller.signal
           });
           const data = await resp.json();
@@ -315,4 +315,3 @@ export {
   worker_source_default as default
 };
 //# sourceMappingURL=worker-current.js.map
-

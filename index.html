@@ -52,6 +52,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.chart-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.chart-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); height: 30px; padding: 0 28px 0 10px; font-size: 12px; font-family: var(--mono); outline: none; }
+.chart-select:focus { border-color: var(--dim); }
+.trend-note { color: var(--dim); font-size: 11px; font-family: var(--mono); margin-top: 8px; min-height: 14px; }
 
 .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 2rem; }
 .sum-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; }
@@ -123,6 +128,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .btn-save { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 20px; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text); }
 .status { text-align: center; padding: 4rem 0; font-family: var(--mono); font-size: 13px; color: var(--dim); }
 .error-msg { color: var(--danger); }
+@media (max-width: 720px) {
+  .chart-grid, .summary { grid-template-columns: 1fr; }
+  .chart-toolbar { align-items: flex-start; flex-direction: column; }
+  .chart-select { width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -253,6 +263,13 @@ const renTotal = s => ['wechat','alipay','wangshang','gsyh','zsyh','fubang','han
 const taiTotal = s => ['cathay','cathaysec','yuanta','taishin'].reduce((a,k) => a + s[k], 0) * s.rateTWD;
 const grandTotal = s => daoTotal(s) + renTotal(s) + taiTotal(s);
 const pct = (value, total) => total > 0 ? (value / total * 100).toFixed(1) : '0.0';
+const trendColors = ['#4a9eff','#3ecf8e','#a78bfa','#fbbf24','#f87171','#22d3ee','#f472b6','#84cc16','#fb923c','#c084fc','#94a3b8'];
+const accountGroups = [
+  { key:'dao', label:'美金', cur:'USD', color:'#4a9eff', fields:[['binance','Binance'],['firstrade','Firstrade']], total:s=>daoTotal(s) },
+  { key:'ren', label:'人民币', cur:'RMB', color:'#3ecf8e', fields:[['wechat','微信'],['alipay','支付宝'],['wangshang','网商'],['gsyh','工商'],['zsyh','招商'],['fubang','富邦'],['hangzhou','杭州'],['beijing','北京'],['guangzhou','广州'],['alibonusrmb','阿里奖金'],['debt','借贷小黑']], total:s=>renTotal(s) },
+  { key:'tai', label:'台币', cur:'TWD', color:'#a78bfa', fields:[['cathay','国泰'],['cathaysec','国泰证券'],['yuanta','元大'],['taishin','台新']], total:s=>taiTotal(s) }
+];
+const groupByKey = Object.fromEntries(accountGroups.map(group => [group.key, group]));
 
 const APP_KEY_STORAGE = 'assetTrackerAppKey';
 let cachedAppKey = localStorage.getItem(APP_KEY_STORAGE) || '';
@@ -279,6 +296,9 @@ async function authFetch(url, options = {}) {
 
 let snapshots = [], currentIdx = 0, editingId = null;
 let expandState = { dao: true, ren: true, tai: true };
+let subTrendGroup = 'ren';
+let subTrendChart = null;
+let renderedCharts = [];
 
 async function loadSnapshots() {
   try {
@@ -305,7 +325,34 @@ function navigate(dir) {
   currentIdx = n; renderAll();
 }
 
+const monthLabels = () => snapshots.map(s => `${s.year}.${s.month}`);
+const fieldValueInRMB = (s, field, cur) => cur === 'USD' ? s[field] * s.rateUSD : cur === 'TWD' ? s[field] * s.rateTWD : s[field];
+const compactRMB = value => '¥' + Math.round(value / 10000).toLocaleString('zh-CN') + 'w';
+
+function lineChartOptions(formatValue, showLegend = true) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        display: showLegend,
+        position: 'bottom',
+        labels: { color:'#6e6e78', boxWidth:10, boxHeight:10, font:{ size:11, family:'DM Mono' } }
+      },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatValue(ctx.parsed.y)}` } }
+    },
+    scales: {
+      x: { ticks:{ font:{size:11,family:'DM Mono'}, color:'#6e6e78' }, grid:{ color:'rgba(255,255,255,0.04)' } },
+      y: { ticks:{ callback:v=>compactRMB(v), font:{size:10,family:'DM Mono'}, color:'#6e6e78' }, grid:{ color:'rgba(255,255,255,0.04)' } }
+    }
+  };
+}
+
 function renderAll() {
+  renderedCharts.forEach(chart => chart.destroy());
+  renderedCharts = [];
+  subTrendChart = null;
   const s = snapshots[currentIdx];
   document.getElementById('month-label').textContent = `${s.year}.${s.month}`;
 
@@ -388,6 +435,26 @@ function renderAll() {
     </div>
   </div>
 
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-label">币种月度走势</div>
+      <div style="position:relative;height:210px;"><canvas id="currencyTrendChart"></canvas></div>
+      <div class="trend-note">按当月汇率折算为人民币，便于横向比较</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-toolbar">
+        <div class="chart-label" style="margin-bottom:0;">子项月度走势</div>
+        <div class="chart-controls">
+          <select class="chart-select" id="sub-trend-group" onchange="setSubTrendGroup(this.value)">
+            ${accountGroups.map(group => `<option value="${group.key}" ${group.key === subTrendGroup ? 'selected' : ''}>${group.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="position:relative;height:210px;"><canvas id="subTrendChart"></canvas></div>
+      <div class="trend-note" id="sub-trend-note"></div>
+    </div>
+  </div>
+
   <div class="summary">
     <div class="sum-card"><span class="sum-tag tag-tai">台币 TWD</span><div class="sum-native">${fmtN(taiNative,'TWD')}</div><div class="sum-rmb">≈ ${fmtRMB(tt)}</div><div class="sum-pct">${pct(tt,gt)}% 占总</div></div>
     <div class="sum-card"><span class="sum-tag tag-ren">人民币 RMB</span><div class="sum-native">${fmtRMB(rt)}</div><div class="sum-rmb">&nbsp;</div><div class="sum-pct">${pct(rt,gt)}% 占总</div></div>
@@ -419,21 +486,81 @@ function renderAll() {
   document.getElementById('main-content').innerHTML = html;
 
   // 图表
-  new Chart(document.getElementById('pieChart'), {
+  renderedCharts.push(new Chart(document.getElementById('pieChart'), {
     type: 'doughnut',
     data: { labels:['台币','人民币','美金'], datasets:[{ data:[Math.round(tt),Math.round(rt),Math.round(dt)], backgroundColor:['#a78bfa','#3ecf8e','#4a9eff'], borderWidth:0 }] },
     options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+pct(ctx.parsed,gt)+'%'}} } }
-  });
+  }));
   const labels = snapshots.map(s => `${s.year}.${s.month}`);
   const totals = snapshots.map(s => Math.round(grandTotal(s)));
-  new Chart(document.getElementById('trendChart'), {
+  renderedCharts.push(new Chart(document.getElementById('trendChart'), {
     type: 'line',
     data: { labels, datasets:[{ label:'总资产', data:totals, borderColor:'#4a9eff', backgroundColor:'rgba(74,158,255,0.08)', borderWidth:2, pointRadius:4, pointBackgroundColor:'#4a9eff', fill:true, tension:0.3 }] },
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>'¥'+ctx.parsed.y.toLocaleString()}} }, scales:{ x:{ticks:{font:{size:11,family:'DM Mono'},color:'#6e6e78'},grid:{color:'rgba(255,255,255,0.04)'}}, y:{ticks:{callback:v=>'¥'+(v/10000).toFixed(0)+'w',font:{size:10,family:'DM Mono'},color:'#6e6e78'},grid:{color:'rgba(255,255,255,0.04)'}} } }
-  });
+  }));
+  renderCurrencyTrendChart();
+  renderSubTrendChart();
 
   // 触发 AI 解读
   fetchAnalysis(s, prev);
+}
+
+function renderCurrencyTrendChart() {
+  const canvas = document.getElementById('currencyTrendChart');
+  if (!canvas) return;
+  renderedCharts.push(new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: monthLabels(),
+      datasets: accountGroups.map(group => ({
+        label: group.label,
+        data: snapshots.map(s => Math.round(group.total(s))),
+        borderColor: group.color,
+        backgroundColor: group.color + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.28
+      }))
+    },
+    options: lineChartOptions(value => fmtRMB(value))
+  }));
+}
+
+function setSubTrendGroup(key) {
+  subTrendGroup = key;
+  renderSubTrendChart();
+}
+
+function renderSubTrendChart() {
+  const canvas = document.getElementById('subTrendChart');
+  if (!canvas) return;
+  if (subTrendChart) {
+    subTrendChart.destroy();
+    renderedCharts = renderedCharts.filter(chart => chart !== subTrendChart);
+  }
+
+  const group = groupByKey[subTrendGroup] || accountGroups[0];
+  const datasets = group.fields.map(([field, label], index) => ({
+    label,
+    data: snapshots.map(s => Math.round(fieldValueInRMB(s, field, group.cur))),
+    borderColor: trendColors[index % trendColors.length],
+    backgroundColor: trendColors[index % trendColors.length] + '22',
+    borderWidth: 2,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    tension: 0.28
+  }));
+
+  subTrendChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: monthLabels(), datasets },
+    options: lineChartOptions(value => fmtRMB(value), true)
+  });
+  renderedCharts.push(subTrendChart);
+
+  const note = document.getElementById('sub-trend-note');
+  if (note) note.textContent = `${group.label}子项按当月汇率折算为人民币；原币金额仍在下方账户明细中展示`;
 }
 
 async function fetchAnalysis(current, previous) {

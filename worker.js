@@ -118,11 +118,31 @@ function localAssetAnalysis(current, previous) {
 __name(localAssetAnalysis, "localAssetAnalysis");
 __name2(localAssetAnalysis, "localAssetAnalysis");
 __name22(localAssetAnalysis, "localAssetAnalysis");
+var OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
+async function callOpenRouter(apiKey, prompt, signal) {
+  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://chuehjen.github.io/asset-tracker/",
+      "X-Title": "Asset Tracker"
+    },
+    body: JSON.stringify({ model: OPENROUTER_MODEL, max_tokens: 300, messages: [{ role: "user", content: prompt }] }),
+    signal
+  });
+  const data = await resp.json();
+  const text = data.choices?.[0]?.message?.content || "";
+  return { resp, data, text };
+}
+__name(callOpenRouter, "callOpenRouter");
+__name2(callOpenRouter, "callOpenRouter");
+__name22(callOpenRouter, "callOpenRouter");
 var worker_source_default = {
   async fetch(request, env) {
     const NOTION_TOKEN = env.NOTION_TOKEN;
     const DB_ID = env.DB_ID;
-    const LONGCAT_KEY = env.LONGCAT_KEY;
+    const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
     if (request.headers.get("X-App-Key") !== env.APP_KEY) {
       return json({ error: "Unauthorized" }, 401);
@@ -218,13 +238,7 @@ var worker_source_default = {
 
 \u7528\u6237\u8F93\u5165\uFF1A
 ${text}`;
-        const resp = await fetch("https://api.longcat.chat/anthropic/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LONGCAT_KEY}`, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: "LongCat-2.0", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] })
-        });
-        const data = await resp.json();
-        const text2 = data.content?.[0]?.text || "";
+        const { resp, data, text: text2 } = await callOpenRouter(OPENROUTER_API_KEY, prompt);
         try {
           const parsed = JSON.parse(text2.replace(/```json|```/g, "").trim());
           return json(parsed);
@@ -261,16 +275,10 @@ ${prev ? `\u4E0A\u6708\u603B\u8D44\u4EA7\uFF1A${money(prev.total)}\uFF0C\u672C\u
 
 \u76F4\u63A5\u8F93\u51FA\u5206\u6790\u5185\u5BB9\uFF0C\u4E0D\u8981\u6807\u9898\u548C\u5E8F\u53F7\u3002`;
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort("AI timeout"), 6e3);
+        const timeout = setTimeout(() => controller.abort("AI timeout"), 25e3);
         try {
-          const resp = await fetch("https://api.longcat.chat/anthropic/v1/messages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LONGCAT_KEY}`, "anthropic-version": "2023-06-01" },
-            body: JSON.stringify({ model: "LongCat-2.0", max_tokens: 1e3, messages: [{ role: "user", content: prompt }] }),
-            signal: controller.signal
-          });
-          const data = await resp.json();
-          const analysis = data.content?.[0]?.text?.trim();
+          const { text } = await callOpenRouter(OPENROUTER_API_KEY, prompt, controller.signal);
+          const analysis = text.trim();
           return json({ analysis: analysis || fallbackAnalysis, source: analysis ? "ai" : "local" });
         } catch (e) {
           return json({ analysis: fallbackAnalysis, source: "local" });

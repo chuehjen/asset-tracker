@@ -144,9 +144,6 @@ var worker_source_default = {
     const DB_ID = env.DB_ID;
     const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
-    if (request.headers.get("X-App-Key") !== env.APP_KEY) {
-      return json({ error: "Unauthorized" }, 401);
-    }
     const url = new URL(request.url);
     const path = url.pathname;
     try {

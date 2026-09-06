@@ -16,7 +16,6 @@
 - AI 自然语言解析录入与资产解读
 - 删除月度快照（移入 Notion 垃圾箱，可恢复）
 - 数据存储于 Notion Database，多设备同步
-- 访问密码保护（`X-App-Key`），未持有密码无法读写数据
 
 ## 账户结构
 
@@ -29,31 +28,16 @@
 ## 技术架构
 
 ```
-GitHub Pages（前端）→ Cloudflare Workers（CORS 代理 + 密码鉴权）→ Notion API（数据存储）
+GitHub Pages（前端）→ Cloudflare Workers（CORS 代理）→ Notion API（数据存储）
 ```
 
 - **前端**：原生 HTML / CSS / JS，Chart.js 图表，托管于 GitHub Pages
-- **代理**：Cloudflare Workers，处理跨域请求、密码鉴权并转发至 Notion API
+- **代理**：Cloudflare Workers，处理跨域请求并转发至 Notion API
 - **存储**：Notion Database，每行为一个月度快照
 
 ## 如何更新数据
 
 每月末打开网站，点右上角「＋ 录入」，填入各账户余额和当月汇率，保存即可。
-
-## 访问密码
-
-接口通过 `X-App-Key` 请求头做鉴权，密码存放在 Cloudflare Worker 的 `APP_KEY` Secret 中：
-
-```bash
-wrangler secret put APP_KEY
-```
-
-网页首次打开时会弹窗要求输入访问密码，输入后会缓存在浏览器 `localStorage` 中，之后无需再次输入；请求若返回 401（密码错误或未缓存）会自动清空本地缓存并重新弹窗一次。
-
-如果忘记密码或需要更换密码：
-
-1. 重新执行 `wrangler secret put APP_KEY` 设置新密码并 `wrangler deploy`。
-2. 在浏览器里清空该网站的 `localStorage`（或直接打开无痕窗口 / 换一台设备）访问网站，即可让浏览器重新弹窗输入新密码。
 
 ## 本地开发
 
@@ -65,6 +49,7 @@ Cloudflare Worker 代码在 `worker.js`，配置在 `wrangler.toml`。敏感信�
 wrangler secret put NOTION_TOKEN
 wrangler secret put DB_ID
 wrangler secret put LONGCAT_KEY
-wrangler secret put APP_KEY
 wrangler deploy
 ```
+
+当前接口没有访问鉴权，任何能够访问线上地址的人都可以读取和修改资产快照。

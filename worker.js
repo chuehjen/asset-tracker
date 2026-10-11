@@ -114,6 +114,41 @@ __name(localAssetAnalysis, "localAssetAnalysis");
 __name2(localAssetAnalysis, "localAssetAnalysis");
 __name22(localAssetAnalysis, "localAssetAnalysis");
 var OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
+var AUTH_USER = "chueh";
+async function authorized(request, password) {
+  if (!password) return false;
+  const header = request.headers.get("Authorization") || "";
+  if (!header.startsWith("Basic ")) return false;
+  let credentials;
+  try {
+    credentials = atob(header.slice(6));
+  } catch {
+    return false;
+  }
+  const expected = `${AUTH_USER}:${password}`;
+  const supplied = new TextEncoder().encode(credentials);
+  const correct = new TextEncoder().encode(expected);
+  const [suppliedHash, correctHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", supplied),
+    crypto.subtle.digest("SHA-256", correct)
+  ]);
+  const a = new Uint8Array(suppliedHash);
+  const b = new Uint8Array(correctHash);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+function unauthorized() {
+  return new Response("Authentication required", {
+    status: 401,
+    headers: {
+      "WWW-Authenticate": 'Basic realm="CHUEH Asset Tracker", charset="UTF-8"',
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff"
+    }
+  });
+}
 async function callOpenRouter(apiKey, prompt, signal) {
   const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -135,12 +170,26 @@ __name2(callOpenRouter, "callOpenRouter");
 __name22(callOpenRouter, "callOpenRouter");
 var worker_source_default = {
   async fetch(request, env) {
+    if (!env.ASSET_AUTH_PASSWORD) {
+      return new Response("Authentication is not configured", { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+    if (!await authorized(request, env.ASSET_AUTH_PASSWORD)) return unauthorized();
     const NOTION_TOKEN = env.NOTION_TOKEN;
     const DB_ID = env.DB_ID;
     const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Allow": "GET, POST, PATCH, DELETE, OPTIONS" } });
     const url = new URL(request.url);
     const path = url.pathname;
+    if (["POST", "PATCH", "DELETE"].includes(request.method)) {
+      const origin = request.headers.get("Origin");
+      const fetchSite = request.headers.get("Sec-Fetch-Site");
+      if (origin && origin !== url.origin || fetchSite && !["same-origin", "none"].includes(fetchSite)) {
+        return json({ error: "Forbidden" }, 403);
+      }
+      if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json") && request.method !== "DELETE") {
+        return json({ error: "Content-Type must be application/json" }, 415);
+      }
+    }
     try {
       if ((path === "/" || path === "/index.html") && request.method === "GET") {
         const asset = await env.ASSETS.fetch(request);

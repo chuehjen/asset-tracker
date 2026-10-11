@@ -6,11 +6,6 @@ var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
 var __defProp22 = Object.defineProperty;
 var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
-var CORS = {
-  "Access-Control-Allow-Origin": "https://chuehjen.github.io",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-App-Key"
-};
 var FIELDS = ["year", "month", "rateUSD", "rateTWD", "binance", "firstrade", "wechat", "alipay", "wangshang", "gsyh", "zsyh", "fubang", "hangzhou", "beijing", "guangzhou", "alibonusrmb", "debt", "cathay", "cathaysec", "yuanta", "taishin"];
 var PARSE_ALIASES = [
   ["cathaysec", [/国泰证券/i]],
@@ -143,10 +138,19 @@ var worker_source_default = {
     const NOTION_TOKEN = env.NOTION_TOKEN;
     const DB_ID = env.DB_ID;
     const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
-    if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Allow": "GET, POST, PATCH, DELETE, OPTIONS" } });
     const url = new URL(request.url);
     const path = url.pathname;
     try {
+      if ((path === "/" || path === "/index.html") && request.method === "GET") {
+        const asset = await env.ASSETS.fetch(request);
+        const headers = new Headers(asset.headers);
+        headers.set("Cache-Control", "no-store");
+        headers.set("Referrer-Policy", "no-referrer");
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+        return new Response(asset.body, { status: asset.status, headers });
+      }
       if (path === "/snapshots" && request.method === "GET") {
         const resp = await fetch(`https://api.notion.com/v1/databases/${DB_ID}/query`, {
           method: "POST",
@@ -283,14 +287,14 @@ ${prev ? `\u4E0A\u6708\u603B\u8D44\u4EA7\uFF1A${money(prev.total)}\uFF0C\u672C\u
           clearTimeout(timeout);
         }
       }
-      return new Response("Not found", { status: 404, headers: CORS });
+      return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
     } catch (e) {
       return json({ error: e.message }, 500);
     }
   }
 };
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
 __name(json, "json");
 __name2(json, "json");

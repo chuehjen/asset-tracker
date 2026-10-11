@@ -45,6 +45,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .analysis-label { font-size: 11px; font-family: var(--mono); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .analysis-text { font-size: 13px; line-height: 1.7; color: var(--text); }
 .analysis-loading { font-size: 13px; color: var(--dim); font-family: var(--mono); }
+.analysis-btn { margin-left: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 12px; font-family: var(--sans); cursor: pointer; }
+.analysis-btn:hover { border-color: var(--dim); }
+.analysis-btn:disabled { opacity: 0.5; cursor: wait; }
+.analysis-note { margin-top: 8px; font-size: 11px; line-height: 1.5; color: var(--muted); }
 
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
 .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
@@ -276,6 +280,7 @@ let expandState = { dao: true, ren: true, tai: true };
 let subTrendGroup = 'ren';
 let subTrendChart = null;
 let renderedCharts = [];
+let analysisRequestId = 0;
 
 async function loadSnapshots() {
   try {
@@ -327,6 +332,7 @@ function lineChartOptions(formatValue, showLegend = true) {
 }
 
 function renderAll() {
+  analysisRequestId++;
   renderedCharts.forEach(chart => chart.destroy());
   renderedCharts = [];
   subTrendChart = null;
@@ -392,8 +398,10 @@ function renderAll() {
     <div class="analysis-header">
       <span class="analysis-icon">✦</span>
       <span class="analysis-label">AI 资产解读</span>
+      <button class="analysis-btn" id="analysis-btn" type="button" onclick="requestAnalysis()">生成解读</button>
     </div>
-    <div class="analysis-text" id="analysis-text"><span class="analysis-loading">分析中...</span></div>
+    <div class="analysis-text" id="analysis-text">点击「生成解读」后查看本月分析。</div>
+    <div class="analysis-note">点击后会将资产汇总及部分账户金额发送给 OpenRouter。</div>
   </div>
 
   <div class="chart-grid">
@@ -478,8 +486,6 @@ function renderAll() {
   renderCurrencyTrendChart();
   renderSubTrendChart();
 
-  // 触发 AI 解读
-  fetchAnalysis(s, prev);
 }
 
 function renderCurrencyTrendChart() {
@@ -540,19 +546,28 @@ function renderSubTrendChart() {
   if (note) note.textContent = `${group.label}子项按当月汇率折算为人民币；原币金额仍在下方账户明细中展示`;
 }
 
-async function fetchAnalysis(current, previous) {
+async function requestAnalysis() {
+  const current = snapshots[currentIdx];
+  if (!current) return;
+  const previous = snapshots[currentIdx - 1] || null;
+  const requestId = ++analysisRequestId;
+  const button = document.getElementById('analysis-btn');
+  const el = document.getElementById('analysis-text');
+  button.disabled = true;
+  el.textContent = '分析中...';
   try {
     const r = await fetch(`${WORKER}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current, previous: previous || null })
+      body: JSON.stringify({ current, previous })
     });
+    if (!r.ok) throw new Error('请求失败 ' + r.status);
     const data = await r.json();
-    const el = document.getElementById('analysis-text');
-    if (el) el.textContent = data.analysis || '暂无分析';
+    if (requestId === analysisRequestId) el.textContent = data.analysis || '暂无分析';
   } catch(e) {
-    const el = document.getElementById('analysis-text');
-    if (el) el.textContent = '解读加载失败';
+    if (requestId === analysisRequestId) el.textContent = '解读加载失败';
+  } finally {
+    if (requestId === analysisRequestId) button.disabled = false;
   }
 }
 

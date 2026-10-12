@@ -255,6 +255,64 @@ firstrade：67903
 
 <script>
 const WORKER = 'https://notion-asset-proxy.hsnu130821.workers.dev';
+let editPassword = null;
+
+function askEditPassword() {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.8);display:grid;place-items:center;padding:20px';
+    const form = document.createElement('form');
+    form.style.cssText = 'width:min(100%,360px);padding:24px;background:#19191f;border:1px solid #3a3a46;border-radius:12px;color:#eee';
+    const title = document.createElement('div');
+    title.textContent = '输入修改密码';
+    title.style.cssText = 'font-size:16px;margin-bottom:8px';
+    const note = document.createElement('div');
+    note.textContent = '查看资产无需密码；保存、删除和 AI 调用需要密码。密码只保存在当前页面内存中。';
+    note.style.cssText = 'font-size:12px;color:#aaa;line-height:1.6;margin-bottom:14px';
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.required = true;
+    input.autocomplete = 'current-password';
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:10px;background:#101015;color:#eee;border:1px solid #555;border-radius:6px';
+    const buttons = document.createElement('div');
+    buttons.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:16px';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = '取消';
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.textContent = '继续';
+    buttons.append(cancel, submit);
+    form.append(title, note, input, buttons);
+    overlay.append(form);
+    document.body.append(overlay);
+    const finish = value => { overlay.remove(); resolve(value); };
+    cancel.onclick = () => finish(null);
+    form.onsubmit = event => { event.preventDefault(); finish(input.value); };
+    overlay.onkeydown = event => { if (event.key === 'Escape') finish(null); };
+    input.focus();
+  });
+}
+
+async function protectedFetch(path, options) {
+  if (!editPassword) editPassword = await askEditPassword();
+  if (!editPassword) throw new Error('已取消');
+  const send = () => fetch(`${WORKER}${path}`, {
+    ...options,
+    headers: { ...options.headers, 'X-App-Key': editPassword }
+  });
+  let response = await send();
+  if (response.status === 401) {
+    editPassword = await askEditPassword();
+    if (!editPassword) throw new Error('已取消');
+    response = await send();
+  }
+  if (response.status === 401) {
+    editPassword = null;
+    throw new Error('密码错误');
+  }
+  return response;
+}
 const fmtRMB = n => '¥' + Math.round(n).toLocaleString('zh-CN');
 const fmtN = (n, cur) => {
   if (cur === 'USD') return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
@@ -556,7 +614,7 @@ async function requestAnalysis() {
   button.disabled = true;
   el.textContent = '分析中...';
   try {
-    const r = await fetch(`${WORKER}/analyze`, {
+    const r = await protectedFetch('/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ current, previous })
@@ -583,7 +641,7 @@ async function deleteCurrentSnapshot() {
   if (btn) { btn.textContent = '删除中...'; btn.disabled = true; }
 
   try {
-    const r = await fetch(`${WORKER}/snapshots/${snap.id}`, { method: 'DELETE' });
+    const r = await protectedFetch(`/snapshots/${snap.id}`, { method: 'DELETE' });
     const data = await r.json();
     if (!r.ok || data.error) throw new Error(data.error ? JSON.stringify(data.error) : '删除失败');
 
@@ -668,7 +726,7 @@ async function parseWithAI() {
   const btn = document.getElementById('ai-parse-btn');
   btn.textContent = '✦ 解析中...'; btn.disabled = true;
   try {
-    const r = await fetch(`${WORKER}/parse`, {
+    const r = await protectedFetch('/parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
@@ -701,12 +759,14 @@ async function saveSnapshot() {
   try {
     let result;
     if (editingId) {
-      const r = await fetch(`${WORKER}/snapshots/${editingId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      const r = await protectedFetch(`/snapshots/${editingId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      if (!r.ok) throw new Error('请求失败 ' + r.status);
       result = await r.json();
       const idx = snapshots.findIndex(s => s.id === editingId);
       if (idx >= 0) snapshots[idx] = result;
     } else {
-      const r = await fetch(`${WORKER}/snapshots`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      const r = await protectedFetch('/snapshots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(snap) });
+      if (!r.ok) throw new Error('请求失败 ' + r.status);
       result = await r.json();
       snapshots.push(result);
       snapshots.sort((a,b) => a.year*100+a.month-(b.year*100+b.month));

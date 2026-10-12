@@ -13,7 +13,7 @@
 - 总资产折算成三种货币显示，附环比涨跌
 - 各账户占总资产比例及进度条可视化
 - 总资产走势折线图 + 大类占比圆环图
-- AI 自然语言解析录入与资产解读
+- AI 自然语言解析录入与手动触发的资产解读
 - 删除月度快照（移入 Notion 垃圾箱，可恢复）
 - 数据存储于 Notion Database，多设备同步
 
@@ -28,28 +28,25 @@
 ## 技术架构
 
 ```
-GitHub Pages（前端）→ Cloudflare Workers（CORS 代理）→ Notion API（数据存储）
+GitHub Pages（公开前端）→ Cloudflare Worker（公开读取、密码保护修改）→ Notion API（数据存储）
 ```
 
 - **前端**：原生 HTML / CSS / JS，Chart.js 图表，托管于 GitHub Pages
-- **代理**：Cloudflare Workers，处理跨域请求并转发至 Notion API
+- **代理**：Cloudflare Worker，公开读取快照及汇率；新增、编辑、删除、AI 请求需密码
 - **存储**：Notion Database，每行为一个月度快照
 
 ## 如何更新数据
 
-每月末打开网站，点右上角「＋ 录入」，填入各账户余额和当月汇率，保存即可。
+每月末打开网站，点右上角「＋ 录入」，填入各账户余额和当月汇率，输入修改密码后保存。查看现有快照无需密码。
 
 ## 本地开发
 
 直接编辑 `index.html`，push 到 `main` 分支后 GitHub Pages 自动部署。
 
-Cloudflare Worker 代码在 `worker.js`，配置在 `wrangler.toml`。敏感信息不要写入代码，使用 Cloudflare Secrets：
+Cloudflare Worker 代码在 `worker.js`，配置在 `wrangler.toml`。敏感信息不要写入代码，使用 Cloudflare Secrets。修改密码优先使用现有 `APP_KEY`，也支持 `ASSET_AUTH_PASSWORD`；两者都未配置时，写入和 AI 请求会返回 503。确认 Secret 已存在后部署：
 
 ```bash
-wrangler secret put NOTION_TOKEN
-wrangler secret put DB_ID
-wrangler secret put LONGCAT_KEY
 wrangler deploy
 ```
 
-当前接口没有访问鉴权，任何能够访问线上地址的人都可以读取和修改资产快照。
+快照数据和各账户金额对任何能够访问接口的人公开。密码只在当前网页内存中保留，刷新页面后需要重新输入。部署 Worker 后再验证线上写接口是否返回 401。

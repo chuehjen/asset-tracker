@@ -114,20 +114,10 @@ __name(localAssetAnalysis, "localAssetAnalysis");
 __name2(localAssetAnalysis, "localAssetAnalysis");
 __name22(localAssetAnalysis, "localAssetAnalysis");
 var OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
-var AUTH_USER = "chueh";
 async function authorized(request, password) {
   if (!password) return false;
-  const header = request.headers.get("Authorization") || "";
-  if (!header.startsWith("Basic ")) return false;
-  let credentials;
-  try {
-    credentials = atob(header.slice(6));
-  } catch {
-    return false;
-  }
-  const expected = `${AUTH_USER}:${password}`;
-  const supplied = new TextEncoder().encode(credentials);
-  const correct = new TextEncoder().encode(expected);
+  const supplied = new TextEncoder().encode(request.headers.get("X-App-Key") || "");
+  const correct = new TextEncoder().encode(password);
   const [suppliedHash, correctHash] = await Promise.all([
     crypto.subtle.digest("SHA-256", supplied),
     crypto.subtle.digest("SHA-256", correct)
@@ -139,15 +129,7 @@ async function authorized(request, password) {
   return diff === 0;
 }
 function unauthorized() {
-  return new Response("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="CHUEH Asset Tracker", charset="UTF-8"',
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
-      "X-Content-Type-Options": "nosniff"
-    }
-  });
+  return json({ error: "修改需要密码" }, 401);
 }
 async function callOpenRouter(apiKey, prompt, signal) {
   const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -170,20 +152,25 @@ __name2(callOpenRouter, "callOpenRouter");
 __name22(callOpenRouter, "callOpenRouter");
 var worker_source_default = {
   async fetch(request, env) {
-    if (!env.ASSET_AUTH_PASSWORD) {
-      return new Response("Authentication is not configured", { status: 503, headers: { "Cache-Control": "no-store" } });
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const origin = request.headers.get("Origin");
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: { ...cors(), "Allow": "GET, POST, PATCH, DELETE, OPTIONS" } });
     }
-    if (!await authorized(request, env.ASSET_AUTH_PASSWORD)) return unauthorized();
+    if (origin && origin !== "https://chuehjen.github.io") return json({ error: "Forbidden" }, 403);
+    const isPublicRead = request.method === "GET" && (path === "/snapshots" || path === "/rates");
+    if (!isPublicRead) {
+      const password = env.APP_KEY || env.ASSET_AUTH_PASSWORD;
+      if (!password) return json({ error: "修改密码未配置" }, 503);
+      if (!await authorized(request, password)) return unauthorized();
+    }
     const NOTION_TOKEN = env.NOTION_TOKEN;
     const DB_ID = env.DB_ID;
     const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Allow": "GET, POST, PATCH, DELETE, OPTIONS" } });
-    const url = new URL(request.url);
-    const path = url.pathname;
     if (["POST", "PATCH", "DELETE"].includes(request.method)) {
-      const origin = request.headers.get("Origin");
       const fetchSite = request.headers.get("Sec-Fetch-Site");
-      if (origin && origin !== url.origin || fetchSite && !["same-origin", "none"].includes(fetchSite)) {
+      if (fetchSite === "cross-site" && origin !== "https://chuehjen.github.io") {
         return json({ error: "Forbidden" }, 403);
       }
       if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json") && request.method !== "DELETE") {
@@ -191,15 +178,6 @@ var worker_source_default = {
       }
     }
     try {
-      if ((path === "/" || path === "/index.html") && request.method === "GET") {
-        const asset = await env.ASSETS.fetch(request);
-        const headers = new Headers(asset.headers);
-        headers.set("Cache-Control", "no-store");
-        headers.set("Referrer-Policy", "no-referrer");
-        headers.set("X-Content-Type-Options", "nosniff");
-        headers.set("Content-Security-Policy", "frame-ancestors 'none'");
-        return new Response(asset.body, { status: asset.status, headers });
-      }
       if (path === "/snapshots" && request.method === "GET") {
         const resp = await fetch(`https://api.notion.com/v1/databases/${DB_ID}/query`, {
           method: "POST",
@@ -342,8 +320,15 @@ ${prev ? `\u4E0A\u6708\u603B\u8D44\u4EA7\uFF1A${money(prev.total)}\uFF0C\u672C\u
     }
   }
 };
+function cors() {
+  return {
+    "Access-Control-Allow-Origin": "https://chuehjen.github.io",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-App-Key"
+  };
+}
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+  return new Response(JSON.stringify(data), { status, headers: { ...cors(), "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
 __name(json, "json");
 __name2(json, "json");

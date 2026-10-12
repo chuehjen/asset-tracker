@@ -1,8 +1,3 @@
 name = "notion-asset-proxy"
 main = "worker.js"
 compatibility_date = "2026-05-31"
-
-[assets]
-directory = "./public"
-binding = "ASSETS"
-run_worker_first = true
